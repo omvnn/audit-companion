@@ -44,8 +44,10 @@ test('AuditService.deleteAudit uses DELETE and rejects zero-row deletes', async 
 
 test('ISO scope selection narrows checklist generation', () => {
   const items = buildChecklistForScopes(['7.1.5.2']);
+  const refs = items.map((item) => String(item.requirement_reference));
   assert.ok(items.length >= 1);
-  assert.ok(items.every((item) => String(item.requirement_reference).startsWith('7.1.5') || item.requirement_reference === '7.1.5.2'));
+  assert.ok(refs.some((ref) => ref === '7.1.5.2' || ref === '7.1.5'));
+  assert.ok(refs.every((ref) => ref === '7.1' || ref === '7.1.5' || ref === '7.1.5.2'));
 });
 
 test('Invite parser prefers fragment tokens', () => {

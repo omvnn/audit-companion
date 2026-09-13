@@ -74,6 +74,14 @@ test('Dashboard shows display name and an edit-name control instead of email ide
   assert.doesNotMatch(html, />ahmad@example\.com</);
 });
 
+test('Audit Companion branding uses the auditing logo on login and signed-in shell', () => {
+  const loginHtml = loginView();
+  const dashboardHtml = dashboardView({ profile: { id: 'u1', role: 'auditor', display_name: 'Ahmad' }, labs: [], audits: [] });
+  assert.match(loginHtml, /audit-companion-logo\.png/);
+  assert.match(loginHtml, /alt="Audit Companion logo"/);
+  assert.match(dashboardHtml, /audit-companion-logo\.png/);
+});
+
 test('AuditService updates only the signed-in user display name through RPC', async () => {
   const calls = [];
   const api = {

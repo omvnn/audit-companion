@@ -174,9 +174,9 @@ export function auditMetrics({ responses = [], findings = [], actions = [], evid
 }
 
 export function csvRowsForCAPA(rows = []) {
-  const header = ['Audit','Lab','Clause','Classification','Root cause category','Root cause','Corrective action','Owner','Due date','Status','Days open','Overdue','Verification'];
+  const header = ['Audit','Lab','Clause','Classification','Statement','Root cause category','Root cause','Corrective action','Owner','Due date','Status','Days open','Overdue','Verification'];
   return [header, ...rows.map((row) => [
-    row.audit_title || '', row.lab_name || '', row.requirement_reference || '', row.classification || '',
+    row.audit_title || '', row.lab_name || '', row.requirement_reference || '', row.classification || '', row.finding_statement || '',
     rootCauseLabel(row.root_cause_category), row.root_cause || '', row.action_text || '', row.owner_name || '',
     row.due_date || '', row.status || '', row.days_open ?? '', row.overdue ? 'Yes' : 'No', row.verification_text || '',
   ])];

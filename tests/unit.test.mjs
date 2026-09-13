@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { canDeleteAudit, buildChecklistForScopes, inviteTokenFromUrl, inviteSignupPayload } from '../core.mjs';
+import { canCreateAudit, canDeleteAudit, buildChecklistForScopes, inviteTokenFromUrl, inviteSignupPayload } from '../core.mjs';
 import { dashboardView, loginView } from '../views.mjs';
 import { AuditService } from '../service.mjs';
 
@@ -97,6 +97,46 @@ test('AuditService updates only the signed-in user display name through RPC', as
   assert.equal(calls[0].path, '/rest/v1/rpc/update_own_display_name');
   assert.equal(calls[0].options.method, 'POST');
   assert.deepEqual(calls[0].options.body, { new_display_name: 'Ahmad' });
+});
+
+test('Lead Auditor can create a new audit', () => {
+  assert.equal(canCreateAudit('admin'), true);
+  assert.equal(canCreateAudit('lead_auditor'), true);
+  assert.equal(canCreateAudit('auditor'), false);
+  assert.equal(canCreateAudit('viewer'), false);
+});
+
+test('Admin dashboard renders team role management controls only for admins', () => {
+  const teamProfiles = [
+    { id: 'admin-1', role: 'admin', display_name: 'Admin One', active: true },
+    { id: 'lead-1', role: 'lead_auditor', display_name: 'Lead One', active: true },
+  ];
+  const adminHtml = dashboardView({ profile: teamProfiles[0], labs: [], audits: [], teamProfiles });
+  const leadHtml = dashboardView({ profile: teamProfiles[1], labs: [], audits: [], teamProfiles });
+  assert.match(adminHtml, /TEAM ACCESS/);
+  assert.match(adminHtml, /data-action="change-role"/);
+  assert.match(adminHtml, /value="admin"/);
+  assert.match(adminHtml, /value="lead_auditor"/);
+  assert.doesNotMatch(leadHtml, /TEAM ACCESS/);
+  assert.doesNotMatch(leadHtml, /data-action="change-role"/);
+});
+
+test('AuditService updates a team member role with a role-only profile PATCH', async () => {
+  const calls = [];
+  const api = {
+    user: { id: 'admin-1' },
+    async request(path, options = {}) {
+      calls.push({ path, options });
+      return [{ id: 'lead-1', role: 'admin' }];
+    },
+  };
+  const service = new AuditService(api);
+  const updated = await service.updateProfileRole('lead-1', 'admin');
+  assert.equal(updated.role, 'admin');
+  assert.equal(calls[0].path, '/rest/v1/profiles?id=eq.lead-1');
+  assert.equal(calls[0].options.method, 'PATCH');
+  assert.deepEqual(calls[0].options.body, { role: 'admin' });
+  await assert.rejects(() => service.updateProfileRole('lead-1', 'owner'), /invalid role/i);
 });
 
 test('Frontend hardening remains present', () => {

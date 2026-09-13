@@ -48,14 +48,14 @@ Steps:
 
 Expected: The Audit Companion logo, title, Email, Password and "Sign in" are visible and usable within the phone viewport without horizontal overflow or provider-login interception.
 
-## Test 5 - Keep audit deletion behind authenticated role controls
+## Test 5 - Keep privileged audit and team controls behind authentication
 Viewport: desktop (1280x800)
-Covers: destructive audit deletion guardrail, anonymous access boundary
-Description: Verifies a signed-out visitor cannot reach Recent Work deletion controls.
+Covers: destructive audit deletion guardrail, Admin Team Access boundary, anonymous access boundary
+Description: Verifies a signed-out visitor cannot reach audit deletion or Admin role-management controls.
 
 Steps:
 1. Open the app root URL in a fresh browser session
 2. Wait for the authentication card
 3. Inspect the visible actions
 
-Expected: No "Delete audit" control is visible before authentication; deletion remains protected behind authenticated Admin/Lead Auditor permissions.
+Expected: No "Delete audit" or "TEAM ACCESS" control is visible before authentication; deletion and role management remain protected behind authenticated permissions.

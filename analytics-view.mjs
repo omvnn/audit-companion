@@ -21,6 +21,16 @@ function barList(title,items,empty='No data in this period'){
 function monthLabel(value){const s=String(value||'');return s.length>=7?s.slice(0,7):s||'Unknown';}
 function classificationLabel(v){return ({observation:'Observation',ofi:'OFI',minor_nc:'Minor NC',major_nc:'Major NC'}[v]||v||'Unclassified');}
 function statusLabel(v){return ({open:'Open',action_pending:'Action pending',verification:'Verification',closed:'Closed'}[v]||v||'Unknown');}
+function ncRateTrend(rows=[]){
+  const byMonth=new Map();
+  for(const row of rows){const month=monthLabel(row.audit_date);const current=byMonth.get(month)||{answered:0,nc:0};current.answered+=Number(row.answered_count||0);current.nc+=Number(row.minor_nc_count||0)+Number(row.major_nc_count||0);byMonth.set(month,current);}
+  return [...byMonth.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([label,data])=>({label,value:safeRate(data.nc,data.answered)??0}));
+}
+function closureTrend(rows=[]){
+  const byMonth=new Map();
+  for(const row of rows){if(row.status!=='closed'||!Number.isFinite(Number(row.closure_days)))continue;const month=monthLabel(row.closed_at||row.audit_date);const values=byMonth.get(month)||[];values.push(Number(row.closure_days));byMonth.set(month,values);}
+  return [...byMonth.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([label,values])=>({label,value:mean(values)}));
+}
 
 export function managementAnalyticsView({profile,auditRows=[],findingRows=[],capaRows=[],filters={},labs=[],message=''}={}){
   if(!canSeeManagementAnalytics(profile))return shell(`<main class="page"><div class="empty"><b>Management analytics is restricted</b><p>Admin or Lead Auditor access is required.</p></div></main>`,{profile,title:'Analytics'});
@@ -31,6 +41,8 @@ export function managementAnalyticsView({profile,auditRows=[],findingRows=[],cap
   const overdue=capaRows.filter(r=>r.overdue).length;
   const avgClosure=mean(capaRows.filter(r=>r.status==='closed').map(r=>r.closure_days));
   const monthAudits=counts(auditRows,r=>monthLabel(r.audit_date));
+  const ncTrend=ncRateTrend(auditRows);
+  const closeTrend=closureTrend(capaRows);
   const classifications=counts(findingRows,'classification',classificationLabel);
   const labsBreakdown=counts(findingRows,'lab_name',v=>v||'Unknown lab');
   const clauses=counts(findingRows,'requirement_reference',v=>v||'No clause').slice(0,8);
@@ -46,9 +58,9 @@ export function managementAnalyticsView({profile,auditRows=[],findingRows=[],cap
     <div class="audit-toolbar"><button class="ghost sm" data-action="back">← Dashboard</button><div class="toolbar-actions"><button class="ghost sm" data-action="open-capa">CAPA Register</button></div></div>
     <section class="analytics-hero"><div><div class="eyebrow">MANAGEMENT VIEW</div><h1>Management Analytics</h1><p>Trends across audits you are permitted to read. Every metric comes from the operational audit records.</p></div></section>
     ${message?`<div class="notice">${esc(message)}</div>`:''}
-    <form class="analytics-filters" id="analytics-filter-form"><label>Lab<select name="labId"><option value="">All labs</option>${labOptions}</select></label><label>From<input name="from" type="date" value="${esc(filters.from||'')}"></label><label>To<input name="to" type="date" value="${esc(filters.to||'')}"></label><label>Audit status<select name="auditStatus"><option value="">All statuses</option>${['draft','active','review','closed'].map(v=>`<option value="${v}" ${selected(filters.auditStatus,v)}>${v}</option>`).join('')}</select></label><div class="filter-actions"><button class="primary sm" type="submit" data-action="analytics-filter">Apply</button><button class="ghost sm" type="button" data-action="analytics-reset">Reset</button></div></form>
+    <form class="analytics-filters" id="analytics-filter-form"><label>Lab<select name="labId"><option value="">All labs</option>${labOptions}</select></label><label>From<input name="from" type="date" value="${esc(filters.from||'')}"></label><label>To<input name="to" type="date" value="${esc(filters.to||'')}"></label><label>Audit status<select name="auditStatus"><option value="">All statuses</option>${['draft','active','review','closed'].map(v=>`<option value="${v}" ${selected(filters.auditStatus,v)}>${v}</option>`).join('')}</select></label><label>Finding classification<select name="classification"><option value="">All classifications</option>${['observation','ofi','minor_nc','major_nc'].map(v=>`<option value="${v}" ${selected(filters.classification,v)}>${classificationLabel(v)}</option>`).join('')}</select></label><label>Owner<input name="owner" value="${esc(filters.owner||'')}" placeholder="CAPA owner"></label><div class="filter-actions"><button class="primary sm" type="submit" data-action="analytics-filter">Apply</button><button class="ghost sm" type="button" data-action="analytics-reset">Reset</button></div></form>
     <section class="analytics-kpis">${kpi('Audits in period',auditRows.length)}${kpi('Conformity rate',pct(safeRate(conform,answered)))}${kpi('NC rate',pct(safeRate(nc,answered)),nc?'danger':'')}${kpi('Open CAPA',openCapa)}${kpi('Overdue CAPA',overdue,overdue?'danger':'')}${kpi('Average closure days',avgClosure)}</section>
-    <div class="analytics-grid">${barList('Audits by month',monthAudits)}${barList('Finding classification',classifications)}${barList('Findings by lab',labsBreakdown)}${barList('ISO clause hotspots',clauses)}${barList('Process-stage hotspots',stages)}${barList('Root-cause categories',roots)}${barList('CAPA status',capaStatus)}${barList('CAPA aging',aging)}${barList('CAPA owner workload',owners)}</div>
+    <div class="analytics-grid">${barList('Audits by month',monthAudits)}${barList('NC rate trend',ncTrend)}${barList('Average closure trend',closeTrend)}${barList('Finding classification',classifications)}${barList('Findings by lab',labsBreakdown)}${barList('ISO clause hotspots',clauses)}${barList('Process-stage hotspots',stages)}${barList('Root-cause categories',roots)}${barList('CAPA status',capaStatus)}${barList('CAPA aging',aging)}${barList('CAPA owner workload',owners)}</div>
     <section class="analytics-card wide"><div class="section-head"><div><div class="eyebrow">RECURRENCE</div><h3>Recurring finding signals</h3></div></div><p class="muted">Deterministic signal: same lab, related ISO clause and same process stage across at least two audits. This is not proof that a previous CAPA was ineffective.</p><div class="table-scroll"><table><thead><tr><th>Lab</th><th>Clause</th><th>Process stage</th><th>Occurrences</th><th>First</th><th>Latest</th></tr></thead><tbody>${repeatRows}</tbody></table></div></section>
   </main>`,{profile,title:'Management Analytics'});
 }

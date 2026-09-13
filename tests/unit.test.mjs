@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { canDeleteAudit, buildChecklistForScopes, inviteTokenFromUrl } from '../core.mjs';
-import { dashboardView } from '../views.mjs';
+import { canDeleteAudit, buildChecklistForScopes, inviteTokenFromUrl, inviteSignupPayload } from '../core.mjs';
+import { dashboardView, loginView } from '../views.mjs';
 import { AuditService } from '../service.mjs';
 
 test('Admin and lead-auditor delete permissions are enforced in UI helpers', () => {
@@ -17,8 +17,8 @@ test('Admin and lead-auditor delete permissions are enforced in UI helpers', () 
 
 test('Dashboard only renders Delete audit for authorized records', () => {
   const audit = { id: 'a1', title: 'Audit A', scope: '', status: 'draft', audit_date: '2026-09-13', lab_name: 'Material Lab', auditee: '', created_by: 'lead-1', lead_auditor_id: 'lead-1' };
-  const leadHtml = dashboardView({ profile: { id: 'lead-1', role: 'lead_auditor' }, labs: [], audits: [audit] });
-  const auditorHtml = dashboardView({ profile: { id: 'auditor-1', role: 'auditor' }, labs: [], audits: [audit] });
+  const leadHtml = dashboardView({ profile: { id: 'lead-1', role: 'lead_auditor', display_name: 'Luqman' }, labs: [], audits: [audit] });
+  const auditorHtml = dashboardView({ profile: { id: 'auditor-1', role: 'auditor', display_name: 'Auditor' }, labs: [], audits: [audit] });
   assert.match(leadHtml, /Delete audit/);
   assert.doesNotMatch(auditorHtml, /Delete audit/);
 });
@@ -53,6 +53,42 @@ test('ISO scope selection narrows checklist generation', () => {
 test('Invite parser prefers fragment tokens', () => {
   assert.equal(inviteTokenFromUrl('https://example.test/#invite=frag-token'), 'frag-token');
   assert.equal(inviteTokenFromUrl('https://example.test/?invite=query-token#invite=frag-token'), 'frag-token');
+});
+
+test('Invited signup requires and submits a display name', () => {
+  const html = loginView({ invite: 'invite-token' });
+  assert.match(html, /name="display_name"/);
+  assert.match(html, /Display name/);
+  assert.match(html, /maxlength="60"/);
+  assert.deepEqual(inviteSignupPayload('a@example.com', 'password123', 'invite-token', '  Ahmad Luqman  '), {
+    email: 'a@example.com',
+    password: 'password123',
+    data: { invite_token: 'invite-token', display_name: 'Ahmad Luqman' },
+  });
+});
+
+test('Dashboard shows display name and an edit-name control instead of email identity', () => {
+  const html = dashboardView({ profile: { id: 'u1', role: 'auditor', display_name: 'Ahmad', email: 'ahmad@example.com' }, labs: [], audits: [] });
+  assert.match(html, />Ahmad</);
+  assert.match(html, /Edit name/);
+  assert.doesNotMatch(html, />ahmad@example\.com</);
+});
+
+test('AuditService updates only the signed-in user display name through RPC', async () => {
+  const calls = [];
+  const api = {
+    user: { id: 'u1' },
+    async request(path, options = {}) {
+      calls.push({ path, options });
+      return { display_name: 'Ahmad' };
+    },
+  };
+  const service = new AuditService(api);
+  const updated = await service.updateDisplayName('  Ahmad  ');
+  assert.equal(updated.display_name, 'Ahmad');
+  assert.equal(calls[0].path, '/rest/v1/rpc/update_own_display_name');
+  assert.equal(calls[0].options.method, 'POST');
+  assert.deepEqual(calls[0].options.body, { new_display_name: 'Ahmad' });
 });
 
 test('Frontend hardening remains present', () => {

@@ -2,6 +2,27 @@ import { buildChecklistForScopes, formatScopeSelection, evidencePath, canEditAud
 const enc=v=>encodeURIComponent(v);
 const first=x=>Array.isArray(x)?x[0]:x;
 const APP_ROLES=new Set(['admin','lead_auditor','auditor','viewer']);
+const FINDING_STATUSES=new Set(['open','action_pending','verification','closed']);
+const ROOT_CAUSE_CATEGORIES=new Set(['people_competency','procedure_documentation','equipment_calibration','process_method','material_sample','data_system','environment','supplier_external','other']);
+const add=(parts,key,op,value)=>{if(value===undefined||value===null||value==='')return;parts.push(`${key}=${op}.${enc(value)}`)};
+function analyticsQuery(base,filters={},kind='capa'){
+  const parts=['select=*'];
+  add(parts,'lab_id','eq',filters.labId);
+  if(kind!=='audit')add(parts,'owner_name','eq',filters.owner);
+  if(kind!=='audit')add(parts,'classification','eq',filters.classification);
+  if(kind!=='audit')add(parts,'root_cause_category','eq',filters.rootCauseCategory);
+  if(kind!=='audit')add(parts,'status','eq',filters.status);
+  if(kind==='audit')add(parts,'audit_status','eq',filters.auditStatus);
+  add(parts,'audit_date','gte',filters.from);
+  add(parts,'audit_date','lte',filters.to);
+  if(kind==='capa'){
+    if(typeof filters.overdue==='boolean')add(parts,'overdue','eq',String(filters.overdue));
+    add(parts,'aging_bucket','eq',filters.agingBucket);
+    if(filters.search){const q=String(filters.search).replace(/[(),]/g,' ').trim();if(q)parts.push(`or=${enc(`(audit_title.ilike.*${q}*,finding_statement.ilike.*${q}*,requirement_reference.ilike.*${q}*,owner_name.ilike.*${q}*)`)}`)}
+    parts.push('order=overdue.desc,due_date.asc.nullslast,created_at.desc');
+  }else parts.push('order=audit_date.asc');
+  return `${base}?${parts.join('&')}`;
+}
 export class AuditService{
   constructor(api){this.api=api}
   uid(){const id=this.api.user?.id;if(!id)throw new Error('Not signed in');return id}
@@ -16,7 +37,11 @@ export class AuditService{
   async saveResponse(checklistItemId,data){const payload={checklist_item_id:checklistItemId,result:data.result||'unanswered',evidence_text:data.evidence_text||'',notes:data.notes||'',sample_references:data.sample_references||'',follow_up:Boolean(data.follow_up),answered_by:this.uid()};return first(await this.api.request('/rest/v1/audit_responses?on_conflict=checklist_item_id',{method:'POST',body:payload,prefer:'resolution=merge-duplicates,return=representation'}));}
   async createFinding(data){const payload={audit_id:data.audit_id,response_id:data.response_id||null,checklist_item_id:data.checklist_item_id||null,classification:data.classification,requirement_reference:data.requirement_reference||'',requirement_text:data.requirement_text||'',evidence:data.evidence||'',statement:data.statement||'',risk_impact:data.risk_impact||'',immediate_correction:data.immediate_correction||'',verification_method:data.verification_method||'',verification_status:'',status:'open',owner_name:data.owner_name||'',due_date:data.due_date||null,created_by:this.uid()};return first(await this.api.request('/rest/v1/findings',{method:'POST',body:payload,prefer:'return=representation'}));}
   async saveFinding(id,data){return first(await this.api.request(`/rest/v1/findings?id=eq.${enc(id)}`,{method:'PATCH',body:data,prefer:'return=representation'}));}
-  async saveCAPA(findingId,data){const existing=await this.api.request(`/rest/v1/corrective_actions?finding_id=eq.${enc(findingId)}&select=id`);if(existing?.length)return first(await this.api.request(`/rest/v1/corrective_actions?id=eq.${enc(existing[0].id)}`,{method:'PATCH',body:{root_cause:data.root_cause||'',action_text:data.action_text||'',owner_name:data.owner_name||'',due_date:data.due_date||null,verification_text:data.verification_text||''},prefer:'return=representation'}));return first(await this.api.request('/rest/v1/corrective_actions',{method:'POST',body:{finding_id:findingId,root_cause:data.root_cause||'',action_text:data.action_text||'',owner_name:data.owner_name||'',due_date:data.due_date||null,verification_text:data.verification_text||''},prefer:'return=representation'}));}
+  async setFindingStatus(findingId,status){if(!FINDING_STATUSES.has(status))throw new Error('Invalid finding status');return first(await this.api.request(`/rest/v1/findings?id=eq.${enc(findingId)}`,{method:'PATCH',body:{status},prefer:'return=representation'}));}
+  async saveCAPA(findingId,data){const category=data.root_cause_category||null;if(category&&!ROOT_CAUSE_CATEGORIES.has(category))throw new Error('Invalid root cause category');const body={root_cause:data.root_cause||'',root_cause_category:category,action_text:data.action_text||'',owner_name:data.owner_name||'',due_date:data.due_date||null,verification_text:data.verification_text||''};const existing=await this.api.request(`/rest/v1/corrective_actions?finding_id=eq.${enc(findingId)}&select=id`);if(existing?.length)return first(await this.api.request(`/rest/v1/corrective_actions?id=eq.${enc(existing[0].id)}`,{method:'PATCH',body,prefer:'return=representation'}));return first(await this.api.request('/rest/v1/corrective_actions',{method:'POST',body:{finding_id:findingId,...body},prefer:'return=representation'}));}
+  async capaRegister(filters={}){return await this.api.request(analyticsQuery('/rest/v1/v_capa_register',filters,'capa'))||[];}
+  async auditAnalytics(auditId){if(!auditId)throw new Error('Audit ID is required');return first(await this.api.request(`/rest/v1/v_audit_analytics?audit_id=eq.${enc(auditId)}&select=*`));}
+  async managementAnalytics(filters={}){const [audits,findings,capa]=await Promise.all([this.api.request(analyticsQuery('/rest/v1/v_audit_analytics',filters,'audit')),this.api.request(analyticsQuery('/rest/v1/v_finding_analytics',filters,'finding')),this.capaRegister(filters)]);return {audits:audits||[],findings:findings||[],capa:capa||[]};}
   async teamProfiles(){return await this.api.request('/rest/v1/profiles?active=eq.true&select=id,display_name,role,active&order=display_name.asc')||[];}
   async assignMember(auditId,userId,assignmentRole='auditor'){if(!['lead','auditor','viewer'].includes(assignmentRole))throw new Error('Invalid assignment role');return first(await this.api.request('/rest/v1/audit_members?on_conflict=audit_id,user_id',{method:'POST',body:{audit_id:auditId,user_id:userId,assignment_role:assignmentRole},prefer:'resolution=merge-duplicates,return=representation'}));}
   async deleteAudit(auditId){const rows=await this.api.request(`/rest/v1/audits?id=eq.${enc(auditId)}`,{method:'DELETE',prefer:'return=representation'});const deleted=first(rows);if(!deleted)throw new Error('Audit not found or deletion is not permitted');return deleted;}
@@ -24,3 +49,4 @@ export class AuditService{
   async attachEvidence({auditId,kind,recordId,file}){if(!['response','finding'].includes(kind))throw new Error('Invalid evidence kind');const path=evidencePath(auditId,kind,recordId,file.name);const bytes=new Uint8Array(await file.arrayBuffer());await this.api.uploadEvidence(path,bytes,file.type||'application/octet-stream');const body={audit_id:auditId,response_id:kind==='response'?recordId:null,finding_id:kind==='finding'?recordId:null,storage_path:path,original_filename:file.name,mime_type:file.type||'application/octet-stream',size_bytes:file.size||bytes.byteLength,uploaded_by:this.uid()};return first(await this.api.request('/rest/v1/evidence_files',{method:'POST',body,prefer:'return=representation'}));}
   async evidenceUrl(path){return this.api.signedEvidenceUrl(path,900)}
 }
+export { ROOT_CAUSE_CATEGORIES, FINDING_STATUSES };

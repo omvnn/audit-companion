@@ -48,7 +48,8 @@ export function canManageAudit(profileRole,audit,userId,assignmentRole){if(profi
 const RESULTS=new Set(['unanswered','conform','observation','ofi','minor_nc','major_nc']);
 export function normalizeResult(value){return RESULTS.has(value)?value:'unanswered'}
 export function csvCell(value){let s=String(value??'');if(/^[=+\-@]/.test(s))s="'"+s;return /[",\n\r]/.test(s)?`"${s.replaceAll('"','""')}"`:s}
-export function inviteSignupPayload(email,password,token){return {email,password,data:{invite_token:token}}}
+export function normalizeDisplayName(value=''){const name=String(value??'').trim().replace(/\s+/g,' ');if(name.length<1||name.length>60)throw new Error('Display name must be between 1 and 60 characters');return name;}
+export function inviteSignupPayload(email,password,token,displayName){return {email,password,data:{invite_token:token,display_name:normalizeDisplayName(displayName)}}}
 function slug(s){return String(s||'file').toLowerCase().normalize('NFKD').replace(/[^a-z0-9.]+/g,'-').replace(/^-+|-+$/g,'')||'file'}
 export function evidencePath(auditId,kind,recordId,fileName){return `${auditId}/${kind}/${recordId}/${slug(fileName)}`}
 export function completionStats(rows){const out={total:rows.length,answered:0,percent:0,conform:0,observation:0,ofi:0,minor_nc:0,major_nc:0};for(const r of rows){const v=normalizeResult(r?.result);if(v!=='unanswered'){out.answered++;out[v]++;}}out.percent=out.total?Math.round(out.answered/out.total*100):0;return out;}

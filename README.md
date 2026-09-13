@@ -1,69 +1,140 @@
-# Audit Companion
+<p align="center">
+  <img src="public/assets/audit-companion-logo.png" alt="Audit Companion logo" width="180">
+</p>
 
-Centralized internal audit workspace for the Testing Validation Lab. Audit Companion supports Material, Performance and Safety Lab audits with shared Supabase-backed data, ISO 9001 scope selection, evidence capture, findings/CAPA, role-based access, exports and responsive desktop/mobile UI.
+<h1 align="center">Audit Companion</h1>
 
-## Production
+<p align="center"><b>A beginner-friendly, centralized internal audit workspace for Testing Validation Lab teams.</b></p>
 
-- App: https://audit-companion-g440ez.v2.appdeploy.ai/
-- Backend: Supabase Auth + Postgres + Row Level Security + private evidence storage
-- Hosting: AppDeploy
+<p align="center">
+  <a href="https://audit-companion-g440ez.v2.appdeploy.ai/"><img alt="Live App" src="https://img.shields.io/badge/Live_App-AppDeploy-24C7B1?style=for-the-badge&logo=googlechrome&logoColor=white"></a>
+  <a href="https://github.com/omvnn/audit-companion/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/omvnn/audit-companion/ci.yml?branch=main&style=for-the-badge&label=CI"></a>
+  <img alt="Backend" src="https://img.shields.io/badge/Backend-Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white">
+</p>
 
-## Roles
+<p align="center">
+  <img alt="ISO 9001" src="https://img.shields.io/badge/ISO_9001-Scope_4--10-2563EB?style=flat-square">
+  <img alt="Security" src="https://img.shields.io/badge/Security-RLS_%2B_Private_Storage-0F766E?style=flat-square&logo=shield&logoColor=white">
+  <img alt="Responsive" src="https://img.shields.io/badge/UI-Desktop_%2B_Mobile-7C3AED?style=flat-square">
+</p>
 
-- **Admin** — full workspace administration, invites, team management, and deletion of any audit.
-- **Lead Auditor** — creates/manages audits and can delete only audits they created or currently lead.
-- **Auditor** — edits assigned audits.
-- **Viewer** — read-only access to assigned audits.
+Audit Companion keeps **audits, evidence, findings, CAPA and team access in one shared place**. It is designed for Material, Performance and Safety Lab audits and uses Supabase for centralized data and security.
 
-## Main capabilities
+> **New here?** You do not need to understand the codebase to use the app. Start with the three steps below.
 
-- Central shared audit dataset across team members
-- ISO 9001 Clauses 4–10 hierarchical scope picker
-- Scope-matched checklist generation
-- Default 18-question Material Lab starter checklist
-- Objective evidence, notes, result classification and private evidence uploads
-- Findings and CAPA follow-up
-- Team assignment and one-time invite links
-- Admin/Lead-Auditor controlled audit deletion
-- CSV and Print/PDF export
-- Responsive desktop/mobile interface
-- Supabase RLS-backed authorization
+## 🚀 Start here
 
-## Repository structure
+1. **Open the live app:** [Audit Companion](https://audit-companion-g440ez.v2.appdeploy.ai/)
+2. **Sign in** with your team account. Invited users choose a display name so teammates see a human-friendly name instead of an email address.
+3. **Open an existing audit or create one** if your role allows it, then work through the checklist and record objective evidence.
 
-- `index.html`, `app.mjs`, `api.mjs`, `core.mjs`, `service.mjs`, `views.mjs`, `styles.css` — production browser client
-- `supabase/migrations/` — reproducible database, Auth/RLS, scope and security migrations
-- `tests/tests.txt` — AppDeploy user-visible QA contract
-- `docs/security/` — purple-team security assessment
-- `docs/qa/` — QA/QC evidence
-- `docs/deployment/` — deployment/runbook documentation
+## ✨ What it can do
 
-## Local development
+| Capability | What it means in simple terms |
+| --- | --- |
+| 🧭 ISO 9001 scope picker | Choose clauses **4–10**, including specific subclauses, before creating an audit. |
+| ✅ Smart checklist | Builds a starter checklist around the ISO scope you selected. |
+| 🧾 Evidence capture | Record objective evidence, notes, sample references and private file evidence. |
+| 🚩 Findings | Record Observation, OFI, Minor NC and Major NC findings. |
+| 🔁 CAPA | Track root cause, corrective actions, owners and due dates. |
+| 👥 Team roles | Admin, Lead Auditor, Auditor and Viewer each get controlled access. |
+| 🪪 Display names | Users can show a single name or full name instead of exposing email as their normal identity. |
+| 🗑️ Controlled deletion | Admin can delete audits; Lead Auditors can delete only audits they created or lead. |
+| 📤 Reporting | Export audit data to CSV and use Print / PDF for reports. |
+| 📱 Responsive UI | Works on desktop and mobile layouts. |
+
+## 👤 Roles at a glance
+
+| Role | Typical use |
+| --- | --- |
+| **Admin** | Manages the workspace, invites people, manages teams and can delete any audit. |
+| **Lead Auditor** | Creates and manages audits; can delete audits they created or currently lead. |
+| **Auditor** | Works on audits they are assigned to and records audit evidence/findings. |
+| **Viewer** | Read-only access to assigned audits. |
+
+## 🗺️ Product roadmap
+
+The roadmap below shows what is already built and the direction of the app.
+
+<p align="center">
+  <img src="docs/assets/audit-companion-roadmap.png" alt="Audit Companion product roadmap" width="900">
+</p>
+
+## 🧩 How the app fits together
+
+```text
+Browser / Mobile Browser
+        │
+        ▼
+Audit Companion UI
+        │
+        ├── Supabase Auth        → sign in / invited accounts
+        ├── Supabase Postgres    → audits, checklist, findings, CAPA, profiles
+        └── Private Storage      → audit evidence files
+
+GitHub → source of truth + CI
+AppDeploy → production web hosting
+```
+
+## 🧑‍💻 Run it locally
+
+You need **Node.js** and **npm**.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Production build:
+Then open the local URL shown by Vite.
+
+To verify a production build:
 
 ```bash
+npm test
 npm run build
 ```
 
-## Database migrations
+## 📁 Project map
 
-Apply `supabase/migrations/*.sql` in filename order to a fresh Supabase project. Migration `001` bootstraps the schema/catalog/private evidence bucket; migration `002` applies invite-only provisioning and hardened private RLS helpers; later migrations add ISO scope persistence, security hardening, and role-gated audit deletion.
+```text
+audit-companion/
+├── index.html                 # Browser entry page
+├── app.mjs                    # Main app interactions and routing
+├── api.mjs                    # Supabase REST/Auth client
+├── core.mjs                   # Core rules, ISO scope and helpers
+├── service.mjs                # Audit/domain operations
+├── views.mjs                  # UI rendering
+├── styles.css                 # Responsive visual design
+├── public/assets/             # Website branding assets
+├── docs/
+│   ├── assets/                # Roadmap and README visuals
+│   ├── deployment/            # Deployment/runbook docs
+│   ├── qa/                    # QA/QC evidence
+│   └── security/              # Purple-team security assessment
+├── supabase/migrations/       # Reproducible database/security changes
+└── tests/                     # Repository + AppDeploy QA tests
+```
 
-Never commit a Supabase service-role key or other private credential. The browser contains only the public Supabase client configuration; access to audit data is enforced by Postgres RLS and private Storage policies.
+## 🔐 Security model
 
-## Verification baseline
+Audit Companion uses **Supabase Auth, Postgres Row Level Security (RLS), private evidence storage, role-based permissions and short-lived signed evidence links**. The browser contains only the public Supabase client configuration; privileged service-role credentials must never be committed to the repository.
 
-Imported from the verified `feature/team-audit-v2` project state after local commit `6dd5229`.
+The project has also gone through a purple-team review. See [`docs/security/2026-09-13-purple-team-assessment.md`](docs/security/2026-09-13-purple-team-assessment.md).
 
-- 84/84 project tests passed
-- 17/17 live-app tests passed after the audit-delete feature
-- AppDeploy production QA: 0 frontend errors, 0 network errors
-- Purple-team gate: no remaining Critical/High finding in the tested frontend/Supabase authorization path
+## 🗃️ Database setup
 
-See `docs/security/2026-09-13-purple-team-assessment.md` for the security assessment.
+For a fresh Supabase project, apply the files in [`supabase/migrations/`](supabase/migrations/) **in filename order**. They bootstrap the schema and then add invite-only provisioning, hardened RLS helpers, ISO scope persistence, security improvements, controlled audit deletion and secure self-service display names.
+
+## ✅ Verification
+
+GitHub Actions runs the repository test suite and production build on changes. Production releases are additionally checked through AppDeploy QA for browser/runtime and network errors before being treated as ready.
+
+## 🌐 Production
+
+**Live app:** https://audit-companion-g440ez.v2.appdeploy.ai/
+
+**Stack:** HTML/CSS/JavaScript · Supabase Auth/Postgres/Storage · AppDeploy · GitHub Actions
+
+---
+
+<p align="center"><b>Audit · Evidence · Findings · CAPA · Improvement</b></p>

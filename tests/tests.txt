@@ -1,16 +1,16 @@
 # Tests
 
-## Test 1 - Load Audit Companion from the clean public URL [sanity]
+## Test 1 - Load branded Audit Companion from the clean public URL [sanity]
 Viewport: desktop (1280x800)
-Covers: clean Audit Companion public URL, verified app-source delivery, Supabase-backed sign-in entry point
-Description: Verifies the short host loads the real Audit Companion instead of a provider login or blank shell.
+Covers: clean Audit Companion public URL, auditing logo branding, verified app-source delivery, Supabase-backed sign-in entry point
+Description: Verifies the short host loads the real branded Audit Companion instead of a provider login or blank shell.
 
 Steps:
 1. Open the app root URL
 2. Wait for the audit app to load
 3. Observe the authentication card
 
-Expected: The page shows "Audit Companion", Email, Password and "Sign in" in the navy/teal interface with no hosting-provider login page.
+Expected: The page shows the Audit Companion auditing/checklist logo, "Audit Companion", Email, Password and "Sign in" in the navy/teal interface with no hosting-provider login page.
 
 ## Test 2 - Reach Supabase Auth through the clean URL
 Viewport: desktop (1280x800)
@@ -24,29 +24,29 @@ Steps:
 
 Expected: A visible invalid-credentials authentication error is shown while the sign-in form remains usable; the page does not become blank or show a hosting error.
 
-## Test 3 - Preserve invite links on the clean Audit Companion host
+## Test 3 - Preserve invite links and collect a display name
 Viewport: desktop (1280x800)
-Covers: invite-link routing, invited signup UI, fragment-token handling on the hardened host
-Description: Verifies invite URLs use the clean host and still reach the invited-account flow.
+Covers: invite-link routing, invited signup UI, display-name field, fragment-token handling on the hardened host
+Description: Verifies invite URLs use the clean host and invited members can choose the human-friendly name teammates will see.
 
 Steps:
 1. Open the app with URL fragment "#invite=qa-invalid-invite-token"
 2. Wait for the app to load
 3. Observe the authentication card
 
-Expected: The card shows "Create invited account" with Email and Password fields and the browser remains on the Audit Companion host.
+Expected: The card shows "Create invited account" with Display name, Email and Password fields and the browser remains on the Audit Companion host.
 
 ## Test 4 - Keep Audit Companion usable on mobile
 Viewport: mobile (375x667)
-Covers: responsive sign-in layout, clean-host mobile delivery, required authentication controls
-Description: Verifies the same clean-host app remains usable at phone width.
+Covers: responsive sign-in layout, branded mobile delivery, required authentication controls
+Description: Verifies the same branded app remains usable at phone width.
 
 Steps:
 1. Open the app root URL at the mobile viewport
 2. Wait for the app to load
 3. Observe the authentication card
 
-Expected: "Audit Companion", Email, Password and "Sign in" are visible and usable within the phone viewport without horizontal overflow or provider-login interception.
+Expected: The Audit Companion logo, title, Email, Password and "Sign in" are visible and usable within the phone viewport without horizontal overflow or provider-login interception.
 
 ## Test 5 - Keep audit deletion behind authenticated role controls
 Viewport: desktop (1280x800)

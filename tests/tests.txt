@@ -1,0 +1,61 @@
+# Tests
+
+## Test 1 - Load Audit Companion from the clean public URL [sanity]
+Viewport: desktop (1280x800)
+Covers: clean Audit Companion public URL, verified app-source delivery, Supabase-backed sign-in entry point
+Description: Verifies the short host loads the real Audit Companion instead of a provider login or blank shell.
+
+Steps:
+1. Open the app root URL
+2. Wait for the audit app to load
+3. Observe the authentication card
+
+Expected: The page shows "Audit Companion", Email, Password and "Sign in" in the navy/teal interface with no hosting-provider login page.
+
+## Test 2 - Reach Supabase Auth through the clean URL
+Viewport: desktop (1280x800)
+Covers: Supabase Auth connectivity, invalid-login error handling, clean-host runtime
+Description: Verifies the clean host executes the real Audit Companion client and can reach Supabase Auth.
+
+Steps:
+1. Enter "qa-invalid@example.com" in Email
+2. Enter "invalid-password-123" in Password
+3. Select "Sign in"
+
+Expected: A visible invalid-credentials authentication error is shown while the sign-in form remains usable; the page does not become blank or show a hosting error.
+
+## Test 3 - Preserve invite links on the clean Audit Companion host
+Viewport: desktop (1280x800)
+Covers: invite-link routing, invited signup UI, fragment-token handling on the hardened host
+Description: Verifies invite URLs use the clean host and still reach the invited-account flow.
+
+Steps:
+1. Open the app with URL fragment "#invite=qa-invalid-invite-token"
+2. Wait for the app to load
+3. Observe the authentication card
+
+Expected: The card shows "Create invited account" with Email and Password fields and the browser remains on the Audit Companion host.
+
+## Test 4 - Keep Audit Companion usable on mobile
+Viewport: mobile (375x667)
+Covers: responsive sign-in layout, clean-host mobile delivery, required authentication controls
+Description: Verifies the same clean-host app remains usable at phone width.
+
+Steps:
+1. Open the app root URL at the mobile viewport
+2. Wait for the app to load
+3. Observe the authentication card
+
+Expected: "Audit Companion", Email, Password and "Sign in" are visible and usable within the phone viewport without horizontal overflow or provider-login interception.
+
+## Test 5 - Keep audit deletion behind authenticated role controls
+Viewport: desktop (1280x800)
+Covers: destructive audit deletion guardrail, anonymous access boundary
+Description: Verifies a signed-out visitor cannot reach Recent Work deletion controls.
+
+Steps:
+1. Open the app root URL in a fresh browser session
+2. Wait for the authentication card
+3. Inspect the visible actions
+
+Expected: No "Delete audit" control is visible before authentication; deletion remains protected behind authenticated Admin/Lead Auditor permissions.

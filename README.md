@@ -28,6 +28,12 @@ Audit Companion keeps **audits, evidence, findings, CAPA and team access in one 
 2. **Sign in** with your team account. Invited users choose a display name so teammates see a human-friendly name instead of an email address.
 3. **Open an existing audit or create one** if your role allows it, then work through the checklist and record objective evidence.
 
+## 📌 Current project snapshot
+
+For the complete handoff—including current scope, architecture, tech stack, security posture, verification status and resume point—see [`docs/PROJECT_SUMMARY.md`](docs/PROJECT_SUMMARY.md).
+
+**Current milestone:** stable, deployed centralized internal-audit MVP.
+
 ## ✨ What it can do
 
 | Capability | What it means in simple terms |
@@ -107,6 +113,7 @@ audit-companion/
 ├── styles.css                 # Responsive visual design
 ├── public/assets/             # Website branding assets
 ├── docs/
+│   ├── PROJECT_SUMMARY.md     # Current handoff / project snapshot
 │   ├── assets/                # Roadmap and README visuals
 │   ├── deployment/            # Deployment/runbook docs
 │   ├── qa/                    # QA/QC evidence
@@ -123,7 +130,7 @@ The project has also gone through a purple-team review. See [`docs/security/2026
 
 ## 🗃️ Database setup
 
-For a fresh Supabase project, apply the files in [`supabase/migrations/`](supabase/migrations/) **in filename order**. They bootstrap the schema and then add invite-only provisioning, hardened RLS helpers, ISO scope persistence, security improvements, controlled audit deletion and secure self-service display names.
+For a fresh Supabase project, apply the files in [`supabase/migrations/`](supabase/migrations/) **in filename order**. They bootstrap the schema and then add invite-only provisioning, hardened RLS helpers, ISO scope persistence, security improvements, controlled audit deletion, secure self-service display names and Admin role management.
 
 ## ✅ Verification
 
@@ -133,7 +140,7 @@ GitHub Actions runs the repository test suite and production build on changes. P
 
 **Live app:** https://audit-companion-g440ez.v2.appdeploy.ai/
 
-**Stack:** HTML/CSS/JavaScript · Supabase Auth/Postgres/Storage · AppDeploy · GitHub Actions
+**Stack:** HTML/CSS/JavaScript · Vite · Supabase Auth/Postgres/PostgREST/Storage · AppDeploy · GitHub Actions
 
 ---
 

@@ -32,6 +32,23 @@ test('parser extracts inspection method flags without rewriting question text',(
   assert.equal(row.onsiteInspection,true);
 });
 
+test('OCR-aligned whitespace table rows use header column positions to detect methods',()=>{
+  const text=[
+    'No  Clause  Inspection Item                                      Document Review  Inquiry  On-site Inspection',
+    '10  7.1.5   Is each measuring/testing equipment uniquely identified?          X                         X',
+  ].join('\n');
+  const result=parseAuditPlan([{pageNumber:1,confidence:0.94,text}]);
+  assert.equal(result.items.length,1);
+  const row=result.items[0];
+  assert.equal(row.position,10);
+  assert.equal(row.requirementReference,'7.1.5');
+  assert.equal(row.inspectionItem,'Is each measuring/testing equipment uniquely identified?');
+  assert.equal(row.documentReview,true);
+  assert.equal(row.inquiry,false);
+  assert.equal(row.onsiteInspection,true);
+  assert.ok(row.methodConfidence>=0.90);
+});
+
 test('malformed rows become warnings instead of fabricated inspection items',()=>{
   const result=parseAuditPlan([{pageNumber:1,confidence:0.88,text:'Audit Date: 2026-09-10\n7.2 ???'}]);
   assert.equal(result.items.length,0);

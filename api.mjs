@@ -30,6 +30,10 @@ export class SupabaseRest {
   async signIn(email,password){const data=await this.request('/auth/v1/token?grant_type=password',{method:'POST',auth:false,body:{email,password}});this.setSession(data);return data;}
   async signUp(email,password,inviteToken,displayName){const data=await this.request('/auth/v1/signup',{method:'POST',auth:false,body:inviteSignupPayload(email,password,inviteToken,displayName)});if(data?.session)this.setSession(data.session);else if(data?.access_token)this.setSession(data);return data;}
   async refresh(){if(!this.refreshToken)throw new Error('No refresh token');const data=await this.request('/auth/v1/token?grant_type=refresh_token',{method:'POST',auth:false,body:{refresh_token:this.refreshToken}});this.setSession(data);return data;}
-  async uploadEvidence(path,body,mime='application/octet-stream'){return this.request(`/storage/v1/object/audit-evidence/${path.split('/').map(encodeURIComponent).join('/')}`,{method:'POST',body,headers:{'Content-Type':mime,'x-upsert':'true'},prefer:'return=representation'});}
-  async signedEvidenceUrl(path,seconds=900){const data=await this.request(`/storage/v1/object/sign/audit-evidence/${path.split('/').map(encodeURIComponent).join('/')}`,{method:'POST',body:{expiresIn:seconds}});return data?.signedURL?`${this.url}/storage/v1${data.signedURL}`:'';}
+  async uploadPrivate(path,body,mime='application/octet-stream'){return this.request(`/storage/v1/object/audit-evidence/${path.split('/').map(encodeURIComponent).join('/')}`,{method:'POST',body,headers:{'Content-Type':mime,'x-upsert':'true'},prefer:'return=representation'});}
+  async signedPrivateUrl(path,seconds=900){const data=await this.request(`/storage/v1/object/sign/audit-evidence/${path.split('/').map(encodeURIComponent).join('/')}`,{method:'POST',body:{expiresIn:seconds}});return data?.signedURL?`${this.url}/storage/v1${data.signedURL}`:'';}
+  async uploadEvidence(path,body,mime='application/octet-stream'){return this.uploadPrivate(path,body,mime);}
+  async signedEvidenceUrl(path,seconds=900){return this.signedPrivateUrl(path,seconds);}
+  async uploadImport(path,body,mime='application/octet-stream'){return this.uploadPrivate(path,body,mime);}
+  async signedImportUrl(path,seconds=900){return this.signedPrivateUrl(path,seconds);}
 }

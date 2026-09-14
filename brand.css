@@ -13,6 +13,11 @@
   margin: 0 auto 16px;
 }
 
+.auth-card > .eyebrow,
+.auth-card > h1 {
+  text-align: center;
+}
+
 @media (max-width: 620px) {
   .brand-logo {
     width: 40px;

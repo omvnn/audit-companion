@@ -59,94 +59,61 @@ export class AuditService{
   async updateProfileRole(userId,role){if(!userId)throw new Error('User ID is required');if(!APP_ROLES.has(role))throw new Error('Invalid role');const rows=await this.api.request(`/rest/v1/profiles?id=eq.${enc(userId)}`,{method:'PATCH',body:{role},prefer:'return=representation'});const updated=first(rows);if(!updated)throw new Error('Role update was not permitted');return updated;}
   async createAudit(input){const uid=this.uid();const scopeClauses=[...new Set((input.scope_clauses||[]).map(x=>String(x||'').trim()).filter(Boolean))];const formattedScope=formatScopeSelection(scopeClauses);const criteria=input.criteria||`ISO 9001:2015 + Amd 1:2024${formattedScope.length?` — ${formattedScope.join('; ')}`:''} + applicable SOP/WI`;const payload={title:input.title,lab_id:input.lab_id,audit_date:input.audit_date,scope:input.scope||'',scope_clauses:scopeClauses,auditee:input.auditee||'',objective:input.objective||'',criteria,status:'draft',lead_auditor_id:uid,created_by:uid};const audit=first(await this.api.request('/rest/v1/audits',{method:'POST',body:payload,prefer:'return=representation'}));if(!audit?.id)throw new Error('Audit creation returned no ID');await this.api.request('/rest/v1/audit_members',{method:'POST',body:{audit_id:audit.id,user_id:uid,assignment_role:'lead'},prefer:'resolution=merge-duplicates'});const checklist=buildChecklistForScopes(scopeClauses);if(checklist.length)await this.api.request('/rest/v1/checklist_items',{method:'POST',body:checklist.map(x=>({...x,audit_id:audit.id})),prefer:'return=minimal'});return audit;}
   async createImport(meta={}){
-    const body={
-      uploaded_by:this.uid(),
-      original_filename:String(meta.original_filename||meta.name||''),
-      mime_type:String(meta.mime_type||meta.type||''),
-      page_count:Number(meta.page_count)||0,
-      document_hash:String(meta.document_hash||''),
-      parser:String(meta.parser||'local-ocr'),
-      parser_version:String(meta.parser_version||'v0.3.0'),
-      status:'uploaded',
-    };
+    const body={uploaded_by:this.uid(),original_filename:String(meta.original_filename||meta.name||''),mime_type:String(meta.mime_type||meta.type||''),page_count:Number(meta.page_count)||0,document_hash:String(meta.document_hash||''),parser:String(meta.parser||'local-ocr'),parser_version:String(meta.parser_version||'v0.3.0'),status:'uploaded'};
     return first(await this.api.request('/rest/v1/audit_plan_imports?select=*',{method:'POST',body,prefer:'return=representation'}));
   }
-  async updateImport(importId,data={}){
-    if(!importId)throw new Error('Import ID is required');
-    if(data.status&&!IMPORT_STATUSES.has(data.status))throw new Error('Invalid import status');
-    return first(await this.api.request(`/rest/v1/audit_plan_imports?id=eq.${enc(importId)}`,{method:'PATCH',body:data,prefer:'return=representation'}));
-  }
-  async uploadImportSource(importId,file){
-    if(!importId||!file)throw new Error('Import and file are required');
-    const path=`imports/${this.uid()}/${importId}/source-${safeFilename(file.name||'plan')}`;
-    const bytes=new Uint8Array(await file.arrayBuffer());
-    await this.api.uploadImport(path,bytes,file.type||'application/octet-stream');
-    await this.updateImport(importId,{storage_path:path,original_filename:file.name||'',mime_type:file.type||'application/octet-stream'});
-    return path;
-  }
+  async updateImport(importId,data={}){if(!importId)throw new Error('Import ID is required');if(data.status&&!IMPORT_STATUSES.has(data.status))throw new Error('Invalid import status');return first(await this.api.request(`/rest/v1/audit_plan_imports?id=eq.${enc(importId)}`,{method:'PATCH',body:data,prefer:'return=representation'}));}
+  async uploadImportSource(importId,file){if(!importId||!file)throw new Error('Import and file are required');const path=`imports/${this.uid()}/${importId}/source-${safeFilename(file.name||'plan')}`;const bytes=new Uint8Array(await file.arrayBuffer());await this.api.uploadImport(path,bytes,file.type||'application/octet-stream');await this.updateImport(importId,{storage_path:path,original_filename:file.name||'',mime_type:file.type||'application/octet-stream'});return path;}
   async saveImportPage(importId,page={}){
     if(!importId)throw new Error('Import ID is required');
-    const body={
-      import_id:importId,
-      page_number:Number(page.page_number??page.pageNumber)||1,
-      storage_path:String(page.storage_path??page.storagePath??''),
-      quality_status:String(page.quality_status??page.qualityStatus??'pending'),
-      quality_score:page.quality_score??page.qualityScore??null,
-      failure_reason:String(page.failure_reason??page.failureReason??''),
-      ocr_text:String(page.ocr_text??page.text??''),
-      ocr_confidence:page.ocr_confidence??page.confidence??null,
-      parser_version:String(page.parser_version??page.parserVersion??'v0.3.0'),
-    };
+    const body={import_id:importId,page_number:Number(page.page_number??page.pageNumber)||1,storage_path:String(page.storage_path??page.storagePath??''),quality_status:String(page.quality_status??page.qualityStatus??'pending'),quality_score:page.quality_score??page.qualityScore??null,failure_reason:String(page.failure_reason??page.failureReason??''),ocr_text:String(page.ocr_text??page.text??''),ocr_confidence:page.ocr_confidence??page.confidence??null,parser_version:String(page.parser_version??page.parserVersion??'v0.3.0')};
     return first(await this.api.request('/rest/v1/audit_plan_import_pages?on_conflict=import_id,page_number',{method:'POST',body,prefer:'resolution=merge-duplicates,return=representation'}));
   }
-  async replaceImportPage(importId,page={}){
-    if(page.id)await this.api.request(`/rest/v1/audit_plan_import_items?page_id=eq.${enc(page.id)}`,{method:'DELETE',prefer:'return=minimal'});
-    return this.saveImportPage(importId,{...page,quality_status:page.quality_status??page.qualityStatus??'pending'});
-  }
+  async replaceImportPage(importId,page={}){if(page.id)await this.api.request(`/rest/v1/audit_plan_import_items?page_id=eq.${enc(page.id)}`,{method:'DELETE',prefer:'return=minimal'});return this.saveImportPage(importId,{...page,quality_status:page.quality_status??page.qualityStatus??'pending'});}
   async saveImportExtraction(importId,{metadata={},items=[],overallConfidence=null,status='review_ready',parser='local-ocr',parserVersion='v0.3.0',aiUsed=false,aiProvider='',aiModel='',manualCorrections=[]}={}){
     if(!IMPORT_STATUSES.has(status))throw new Error('Invalid import status');
     await this.api.request(`/rest/v1/audit_plan_import_items?import_id=eq.${enc(importId)}`,{method:'DELETE',prefer:'return=minimal'});
     if(items.length)await this.api.request('/rest/v1/audit_plan_import_items',{method:'POST',body:items.map(item=>importItemRow(importId,item)),prefer:'return=minimal'});
-    const body={
-      status,
-      department_text:String(metadata.department||metadata.department_text||''),
-      lab_text:String(metadata.lab||metadata.lab_text||''),
-      lab_id:metadata.labId||metadata.lab_id||null,
-      audit_title:String(metadata.auditTitle||metadata.audit_title||''),
-      audit_date:metadata.auditDate||metadata.audit_date||null,
-      standard_text:String(metadata.standard||metadata.standard_text||''),
-      objective:String(metadata.objective||''),
-      scope:String(metadata.scope||''),
-      criteria:String(metadata.criteria||''),
-      auditors:Array.isArray(metadata.auditors)?metadata.auditors:[],
-      auditees:Array.isArray(metadata.auditees)?metadata.auditees:[],
-      document_number:String(metadata.documentNumber||metadata.document_number||''),
-      document_revision:String(metadata.documentRevision||metadata.document_revision||''),
-      overall_confidence:overallConfidence,
-      parser:String(parser||''),
-      parser_version:String(parserVersion||''),
-      ai_used:Boolean(aiUsed),
-      ai_provider:String(aiProvider||''),
-      ai_model:String(aiModel||''),
-      manual_corrections:Array.isArray(manualCorrections)?manualCorrections:[],
-    };
+    const body={status,department_text:String(metadata.department||metadata.department_text||''),lab_text:String(metadata.lab||metadata.lab_text||''),lab_id:metadata.labId||metadata.lab_id||null,audit_title:String(metadata.auditTitle||metadata.audit_title||''),audit_date:metadata.auditDate||metadata.audit_date||null,standard_text:String(metadata.standard||metadata.standard_text||''),objective:String(metadata.objective||''),scope:String(metadata.scope||''),criteria:String(metadata.criteria||''),auditors:Array.isArray(metadata.auditors)?metadata.auditors:[],auditees:Array.isArray(metadata.auditees)?metadata.auditees:[],document_number:String(metadata.documentNumber||metadata.document_number||''),document_revision:String(metadata.documentRevision||metadata.document_revision||''),overall_confidence:overallConfidence,parser:String(parser||''),parser_version:String(parserVersion||''),ai_used:Boolean(aiUsed),ai_provider:String(aiProvider||''),ai_model:String(aiModel||''),manual_corrections:Array.isArray(manualCorrections)?manualCorrections:[]};
     return this.updateImport(importId,body);
   }
-  async loadImport(importId){
-    const [importRows,pages,items]=await Promise.all([
-      this.api.request(`/rest/v1/audit_plan_imports?id=eq.${enc(importId)}&select=*`),
-      this.api.request(`/rest/v1/audit_plan_import_pages?import_id=eq.${enc(importId)}&select=*&order=page_number.asc`),
-      this.api.request(`/rest/v1/audit_plan_import_items?import_id=eq.${enc(importId)}&select=*&order=position.asc`),
-    ]);
-    const importRecord=first(importRows);if(!importRecord)throw new Error('Import not found or access denied');
-    return {import:importRecord,pages:pages||[],items:items||[]};
-  }
+  async loadImport(importId){const [importRows,pages,items]=await Promise.all([this.api.request(`/rest/v1/audit_plan_imports?id=eq.${enc(importId)}&select=*`),this.api.request(`/rest/v1/audit_plan_import_pages?import_id=eq.${enc(importId)}&select=*&order=page_number.asc`),this.api.request(`/rest/v1/audit_plan_import_items?import_id=eq.${enc(importId)}&select=*&order=position.asc`)]);const importRecord=first(importRows);if(!importRecord)throw new Error('Import not found or access denied');return {import:importRecord,pages:pages||[],items:items||[]};}
   async abandonImport(importId){return this.updateImport(importId,{status:'abandoned'});}
   async promoteImport(importId){return await this.api.request('/rest/v1/rpc/promote_audit_plan_import',{method:'POST',body:{import_id:importId}});}
   async workspaceImportSettings(){return first(await this.api.request('/rest/v1/audit_import_settings?singleton=eq.true&select=*'))||{ai_fallback_enabled:false};}
   async updateAiFallback(enabled){return first(await this.api.request('/rest/v1/audit_import_settings?singleton=eq.true',{method:'PATCH',body:{ai_fallback_enabled:Boolean(enabled),updated_by:this.uid()},prefer:'return=representation'}));}
   async importSourceUrl(path){return this.api.signedImportUrl(path,900);}
-  async loadAudit(id){const audit=first(await this.api.request(`/rest/v1/audits?id=eq.${enc(id)}&select=*`));if(!audit)throw new Error('Audit not found or you do not have access');const [items,responses,findings,evidence]=await Promise.all([this.api.request(`/rest/v1/checklist_items?audit_id=eq.${enc(id)}&select=*&order=position.asc`),this.api.request('/rest/v1/audit_responses?select=*'),this.api.request(`/rest/v1/findings?audit_id=eq.${enc(id)}&select=*&order=created_at.asc`),this.api.request(`/rest/v1/evidence_files?audit_id=eq.${enc(id)}&select=*&order=created_at.asc`)]);const itemIds=new Set((items||[]).map(x=>x.id));const filteredResponses=(responses||[]).filter(x=>itemIds.has(x.checklist_item_id));const findingIds=(findings||[]).map(x=>x.id);let actions=[];if(findingIds.length)actions=await this.api.request(`/rest/v1/corrective_actions?finding_id=in.(${findingIds.map(enc).join(',')})&select=*`)||[];const profile=await this.profile();const membership=first(await this.api.request(`/rest/v1/audit_members?audit_id=eq.${enc(id)}&user_id=eq.${enc(this.uid())}&select=assignment_role`));const assignmentRole=membership?.assignment_role||null;const canEdit=canEditAudit(profile?.role,audit,this.uid(),assignmentRole);const canManage=canManageAudit(profile?.role,audit,this.uid(),assignmentRole);let teamProfiles=[];if(canManage)teamProfiles=await this.teamProfiles();return {audit,profile,assignmentRole,items:items||[],responses:new Map(filteredResponses.map(x=>[x.checklist_item_id,x])),findings:findings||[],actions,evidence:evidence||[],canEdit,canManage,teamProfiles};}
+  async loadAudit(id){
+    const audit=first(await this.api.request(`/rest/v1/audits?id=eq.${enc(id)}&select=*`));
+    if(!audit)throw new Error('Audit not found or you do not have access');
+    const [items,responses,findings,evidence,memberships]=await Promise.all([
+      this.api.request(`/rest/v1/checklist_items?audit_id=eq.${enc(id)}&select=*&order=position.asc`),
+      this.api.request('/rest/v1/audit_responses?select=*'),
+      this.api.request(`/rest/v1/findings?audit_id=eq.${enc(id)}&select=*&order=created_at.asc`),
+      this.api.request(`/rest/v1/evidence_files?audit_id=eq.${enc(id)}&select=*&order=created_at.asc`),
+      this.api.request(`/rest/v1/audit_members?audit_id=eq.${enc(id)}&select=user_id,assignment_role,created_at&order=created_at.asc`),
+    ]);
+    const itemIds=new Set((items||[]).map(x=>x.id));
+    const filteredResponses=(responses||[]).filter(x=>itemIds.has(x.checklist_item_id));
+    const findingIds=(findings||[]).map(x=>x.id);
+    let actions=[];
+    if(findingIds.length)actions=await this.api.request(`/rest/v1/corrective_actions?finding_id=in.(${findingIds.map(enc).join(',')})&select=*`)||[];
+    const profile=await this.profile();
+    const membership=(memberships||[]).find(x=>x.user_id===this.uid());
+    const assignmentRole=membership?.assignment_role||null;
+    const canEdit=canEditAudit(profile?.role,audit,this.uid(),assignmentRole);
+    const canManage=canManageAudit(profile?.role,audit,this.uid(),assignmentRole);
+    const memberIds=[...new Set((memberships||[]).map(x=>x.user_id).filter(Boolean))];
+    let members=[];
+    if(memberIds.length){
+      const memberProfiles=await this.api.request(`/rest/v1/profiles?id=in.(${memberIds.map(enc).join(',')})&select=id,display_name`)||[];
+      const names=new Map(memberProfiles.map(x=>[x.id,x.display_name||'Unnamed member']));
+      members=(memberships||[]).map(x=>({...x,display_name:names.get(x.user_id)||'Unnamed member'}));
+    }
+    let teamProfiles=[];
+    if(canManage)teamProfiles=await this.teamProfiles();
+    return {audit,profile,assignmentRole,items:items||[],responses:new Map(filteredResponses.map(x=>[x.checklist_item_id,x])),findings:findings||[],actions,evidence:evidence||[],canEdit,canManage,members,teamProfiles};
+  }
   async saveResponse(checklistItemId,data){const payload={checklist_item_id:checklistItemId,result:data.result||'unanswered',evidence_text:data.evidence_text||'',notes:data.notes||'',sample_references:data.sample_references||'',follow_up:Boolean(data.follow_up),answered_by:this.uid()};return first(await this.api.request('/rest/v1/audit_responses?on_conflict=checklist_item_id',{method:'POST',body:payload,prefer:'resolution=merge-duplicates,return=representation'}));}
   async createFinding(data){const payload={audit_id:data.audit_id,response_id:data.response_id||null,checklist_item_id:data.checklist_item_id||null,classification:data.classification,requirement_reference:data.requirement_reference||'',requirement_text:data.requirement_text||'',evidence:data.evidence||'',statement:data.statement||'',risk_impact:data.risk_impact||'',immediate_correction:data.immediate_correction||'',verification_method:data.verification_method||'',verification_status:'',status:'open',owner_name:data.owner_name||'',due_date:data.due_date||null,created_by:this.uid()};return first(await this.api.request('/rest/v1/findings',{method:'POST',body:payload,prefer:'return=representation'}));}
   async saveFinding(id,data){return first(await this.api.request(`/rest/v1/findings?id=eq.${enc(id)}`,{method:'PATCH',body:data,prefer:'return=representation'}));}

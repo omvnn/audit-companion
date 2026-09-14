@@ -44,7 +44,8 @@ test('review view emphasizes only warnings while preserving method flags',()=>{
 
 test('review rendering escapes imported content',()=>{
   const html=importReviewView({profile,importRecord:{id:'imp1',original_filename:'<script>x<\/script>',status:'review_ready'},pages:[],items:[{id:'i1',position:1,requirement_reference:'7.2',inspection_item:'<img src=x onerror=1>',document_review:false,inquiry:false,onsite_inspection:false}],labs:[],blockingIssues:[],settings:{}});
-  assert.doesNotMatch(html,/<script>/i);
-  assert.doesNotMatch(html,/<img/i);
-  assert.match(html,/&lt;img/);
+  assert.doesNotMatch(html,/<script>x<\/script>/i);
+  assert.doesNotMatch(html,/<img src=x onerror=1>/i);
+  assert.match(html,/&lt;script&gt;x&lt;\/script&gt;/i);
+  assert.match(html,/&lt;img src=x onerror=1&gt;/i);
 });

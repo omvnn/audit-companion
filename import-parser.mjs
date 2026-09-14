@@ -1,5 +1,6 @@
 const CLAUSE_RE=/\b(?:[4-9]|10)(?:\.\d+){0,3}\b/;
 const TICK_RE=/^(?:x|✓|✔|yes|true|1)$/i;
+const TICK_TOKEN_RE=/(?:^|\s)(x|✓|✔|yes|true|1)(?=\s|$)/i;
 const HEADER_KEYS={
   department:['department'],
   lab:['laboratory','lab'],
@@ -53,6 +54,13 @@ function methodColumnsFromLines(lines){
   }
   return null;
 }
+function tickInWindow(source,start,end=source.length){
+  const segment=source.slice(Math.max(0,start),Math.max(start,end));
+  const match=segment.match(TICK_TOKEN_RE);
+  if(!match)return null;
+  const tokenOffset=match[0].lastIndexOf(match[1]);
+  return {token:match[1],index:start+match.index+tokenOffset};
+}
 function parsePipeRow(raw,pageConfidence,pageNumber){
   const cells=raw.split('|').map(clean);
   if(cells.length<3)return null;
@@ -73,15 +81,17 @@ function parseAlignedRow(raw,pageConfidence,pageNumber,columns){
   const source=String(raw??'');
   const m=source.match(/^\s*(\d+)\s+((?:[4-9]|10)(?:\.\d+){0,3})\s+/);
   if(!m)return null;
-  const questionEnd=Math.min(columns.documentReview,columns.inquiry,columns.onsiteInspection);
-  if(source.length<=questionEnd)return null;
+  const docTick=tickInWindow(source,columns.documentReview,columns.inquiry);
+  const inquiryTick=tickInWindow(source,columns.inquiry,columns.onsiteInspection);
+  const onsiteTick=tickInWindow(source,columns.onsiteInspection);
+  const firstTick=[docTick,inquiryTick,onsiteTick].filter(Boolean).sort((a,b)=>a.index-b.index)[0];
+  const fallbackEnd=Math.min(columns.documentReview,columns.inquiry,columns.onsiteInspection);
+  const questionEnd=firstTick?.index??fallbackEnd;
+  if(source.length<=Math.min(questionEnd,m[0].length))return null;
   const question=clean(source.slice(m[0].length,questionEnd));
   if(question.length<8)return {warning:`Page ${pageNumber} row ${m[1]} is ambiguous`};
-  const doc=clean(source.slice(columns.documentReview,columns.inquiry));
-  const inquiry=clean(source.slice(columns.inquiry,columns.onsiteInspection));
-  const onsite=clean(source.slice(columns.onsiteInspection));
   const conf=Math.max(0,Math.min(1,Number(pageConfidence)||0));
-  return {item:{position:Number(m[1]),sourcePage:pageNumber,sourceRow:m[1],requirementReference:m[2],inspectionItem:question,documentReview:TICK_RE.test(doc),inquiry:TICK_RE.test(inquiry),onsiteInspection:TICK_RE.test(onsite),otherMethod:'',expectedEvidence:'',processStage:'Other',textConfidence:conf,clauseConfidence:conf,methodConfidence:conf}};
+  return {item:{position:Number(m[1]),sourcePage:pageNumber,sourceRow:m[1],requirementReference:m[2],inspectionItem:question,documentReview:Boolean(docTick),inquiry:Boolean(inquiryTick),onsiteInspection:Boolean(onsiteTick),otherMethod:'',expectedEvidence:'',processStage:'Other',textConfidence:conf,clauseConfidence:conf,methodConfidence:conf}};
 }
 function parseLooseRow(raw,pageConfidence,pageNumber){
   const line=clean(raw);if(!line)return null;

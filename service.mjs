@@ -146,7 +146,37 @@ export class AuditService{
   async workspaceImportSettings(){return first(await this.api.request('/rest/v1/audit_import_settings?singleton=eq.true&select=*'))||{ai_fallback_enabled:false};}
   async updateAiFallback(enabled){return first(await this.api.request('/rest/v1/audit_import_settings?singleton=eq.true',{method:'PATCH',body:{ai_fallback_enabled:Boolean(enabled),updated_by:this.uid()},prefer:'return=representation'}));}
   async importSourceUrl(path){return this.api.signedImportUrl(path,900);}
-  async loadAudit(id){const audit=first(await this.api.request(`/rest/v1/audits?id=eq.${enc(id)}&select=*`));if(!audit)throw new Error('Audit not found or you do not have access');const [items,responses,findings,evidence]=await Promise.all([this.api.request(`/rest/v1/checklist_items?audit_id=eq.${enc(id)}&select=*&order=position.asc`),this.api.request('/rest/v1/audit_responses?select=*'),this.api.request(`/rest/v1/findings?audit_id=eq.${enc(id)}&select=*&order=created_at.asc`),this.api.request(`/rest/v1/evidence_files?audit_id=eq.${enc(id)}&select=*&order=created_at.asc`)]);const itemIds=new Set((items||[]).map(x=>x.id));const filteredResponses=(responses||[]).filter(x=>itemIds.has(x.checklist_item_id));const findingIds=(findings||[]).map(x=>x.id);let actions=[];if(findingIds.length)actions=await this.api.request(`/rest/v1/corrective_actions?finding_id=in.(${findingIds.map(enc).join(',')})&select=*`)||[];const profile=await this.profile();const membership=first(await this.api.request(`/rest/v1/audit_members?audit_id=eq.${enc(id)}&user_id=eq.${enc(this.uid())}&select=assignment_role`));const assignmentRole=membership?.assignment_role||null;const canEdit=canEditAudit(profile?.role,audit,this.uid(),assignmentRole);const canManage=canManageAudit(profile?.role,audit,this.uid(),assignmentRole);let teamProfiles=[];if(canManage)teamProfiles=await this.teamProfiles();return {audit,profile,assignmentRole,items:items||[],responses:new Map(filteredResponses.map(x=>[x.checklist_item_id,x])),findings:findings||[],actions,evidence:evidence||[],canEdit,canManage,teamProfiles};}
+  async loadAudit(id){
+    const audit=first(await this.api.request(`/rest/v1/audits?id=eq.${enc(id)}&select=*`));
+    if(!audit)throw new Error('Audit not found or you do not have access');
+    const [items,responses,findings,evidence,memberships]=await Promise.all([
+      this.api.request(`/rest/v1/checklist_items?audit_id=eq.${enc(id)}&select=*&order=position.asc`),
+      this.api.request('/rest/v1/audit_responses?select=*'),
+      this.api.request(`/rest/v1/findings?audit_id=eq.${enc(id)}&select=*&order=created_at.asc`),
+      this.api.request(`/rest/v1/evidence_files?audit_id=eq.${enc(id)}&select=*&order=created_at.asc`),
+      this.api.request(`/rest/v1/audit_members?audit_id=eq.${enc(id)}&select=user_id,assignment_role,created_at&order=created_at.asc`),
+    ]);
+    const itemIds=new Set((items||[]).map(x=>x.id));
+    const filteredResponses=(responses||[]).filter(x=>itemIds.has(x.checklist_item_id));
+    const findingIds=(findings||[]).map(x=>x.id);
+    let actions=[];
+    if(findingIds.length)actions=await this.api.request(`/rest/v1/corrective_actions?finding_id=in.(${findingIds.map(enc).join(',')})&select=*`)||[];
+    const profile=await this.profile();
+    const membership=(memberships||[]).find(x=>x.user_id===this.uid());
+    const assignmentRole=membership?.assignment_role||null;
+    const canEdit=canEditAudit(profile?.role,audit,this.uid(),assignmentRole);
+    const canManage=canManageAudit(profile?.role,audit,this.uid(),assignmentRole);
+    const memberIds=[...new Set((memberships||[]).map(x=>x.user_id).filter(Boolean))];
+    let members=[];
+    if(memberIds.length){
+      const memberProfiles=await this.api.request(`/rest/v1/profiles?id=in.(${memberIds.map(enc).join(',')})&select=id,display_name`)||[];
+      const names=new Map(memberProfiles.map(x=>[x.id,x.display_name||'Unnamed member']));
+      members=(memberships||[]).map(x=>({...x,display_name:names.get(x.user_id)||'Unnamed member'}));
+    }
+    let teamProfiles=[];
+    if(canManage)teamProfiles=await this.teamProfiles();
+    return {audit,profile,assignmentRole,items:items||[],responses:new Map(filteredResponses.map(x=>[x.checklist_item_id,x])),findings:findings||[],actions,evidence:evidence||[],canEdit,canManage,members,teamProfiles};
+  }
   async saveResponse(checklistItemId,data){const payload={checklist_item_id:checklistItemId,result:data.result||'unanswered',evidence_text:data.evidence_text||'',notes:data.notes||'',sample_references:data.sample_references||'',follow_up:Boolean(data.follow_up),answered_by:this.uid()};return first(await this.api.request('/rest/v1/audit_responses?on_conflict=checklist_item_id',{method:'POST',body:payload,prefer:'resolution=merge-duplicates,return=representation'}));}
   async createFinding(data){const payload={audit_id:data.audit_id,response_id:data.response_id||null,checklist_item_id:data.checklist_item_id||null,classification:data.classification,requirement_reference:data.requirement_reference||'',requirement_text:data.requirement_text||'',evidence:data.evidence||'',statement:data.statement||'',risk_impact:data.risk_impact||'',immediate_correction:data.immediate_correction||'',verification_method:data.verification_method||'',verification_status:'',status:'open',owner_name:data.owner_name||'',due_date:data.due_date||null,created_by:this.uid()};return first(await this.api.request('/rest/v1/findings',{method:'POST',body:payload,prefer:'return=representation'}));}
   async saveFinding(id,data){return first(await this.api.request(`/rest/v1/findings?id=eq.${enc(id)}`,{method:'PATCH',body:data,prefer:'return=representation'}));}

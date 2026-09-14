@@ -1,12 +1,13 @@
 # Audit Companion — Purple-Team Security Assessment
 
-Date: 2026-09-13
-Target: Audit Companion centralized web app + Supabase backend
-Approach: non-destructive red/blue/purple review of public delivery, browser client, Auth/RLS, invitations, and evidence storage.
+Date: 2026-09-13  
+Updated for v0.2 analytics verification: 2026-09-14  
+Target: Audit Companion centralized web app + Supabase backend  
+Approach: non-destructive red/blue/purple review of public delivery, browser client, Auth/RLS, invitations, evidence storage, CAPA reporting and analytics views.
 
 ## Gate result
 
-No Critical or High exploitable issue remained after hardening. The application is acceptable for controlled internal use with one residual Supabase Auth advisory noted below.
+No Critical or High exploitable issue remained after hardening. The application is acceptable for controlled internal use with the residual platform/advisor items documented below.
 
 ## Verified controls
 
@@ -23,11 +24,27 @@ No Critical or High exploitable issue remained after hardening. The application 
 - Client refuses to render when embedded in another frame as a clickjacking mitigation.
 - Unused temporary `audit-app-public` storage bucket is private.
 
+## v0.2 analytics / CAPA verification
+
+The v0.2.0 reporting layer uses PostgreSQL views created with `security_invoker=on`, so underlying source-table RLS remains authoritative.
+
+Verified behaviors:
+- Auditor cannot read unrelated audit, finding, or CAPA analytics rows.
+- Lead Auditor reporting remains limited to source rows readable under existing RLS.
+- Viewer can read assigned/readable audit reporting data but write attempts remain blocked.
+- Admin analytics views return the same readable population as the underlying operational records.
+- Closing a finding populates `closed_at`; reopening clears it.
+- Legacy CAPA due dates continue to resolve via `coalesce(corrective_actions.due_date, findings.due_date)`.
+- No new security-definer-view or RLS-bypass warning was introduced by the analytics migration.
+
 ## Residual / platform items
 
-1. Supabase Security Advisor reports "Leaked Password Protection Disabled". Supabase documents this feature as Pro-plan-only. This does not bypass RLS/Auth but leaves credential-stuffing protection weaker than the ideal production baseline.
-2. AppDeploy injects its own platform overlay JavaScript into the hosted page. This is a hosting-provider trust/supply-chain dependency, not an application secret leak. For highly confidential company data, a future deployment on a host with no injected runtime overlay and first-class security headers would reduce third-party runtime exposure.
-3. AppDeploy does not expose a true HTTP `frame-ancestors` / `X-Frame-Options` control for this static site. A client-side anti-framing guard is deployed as a compensating control.
+1. Supabase Security Advisor reports `authenticated_security_definer_function_executable` for `public.update_own_display_name(new_display_name text)`. This is an intentional narrow RPC for authenticated self-service display-name updates and should be re-reviewed if profile permissions change.
+2. Supabase Security Advisor reports **Leaked Password Protection Disabled**. Supabase documents this feature as Pro-plan-only; the current project is on the Free plan.
+3. AppDeploy injects its own platform overlay JavaScript into the hosted page. This is a hosting-provider trust/supply-chain dependency, not an application secret leak. For highly confidential company data, a future deployment on a host with no injected runtime overlay and first-class security headers would reduce third-party runtime exposure.
+4. AppDeploy does not expose a true HTTP `frame-ancestors` / `X-Frame-Options` control for this static site. A client-side anti-framing guard is deployed as a compensating control.
+
+Performance-advisor notices also exist for some pre-existing RLS/init-plan patterns, multiple permissive policies, unindexed foreign keys and newly created indexes that have not yet accumulated usage statistics. These are performance/maintainability items, not demonstrated authorization bypasses.
 
 ## Hardening changes made
 
@@ -36,14 +53,18 @@ No Critical or High exploitable issue remained after hardening. The application 
 - Added restrictive CSP and `Referrer-Policy: no-referrer` equivalent via meta policy.
 - Added anti-framing guard.
 - Privatized obsolete public frontend bundle bucket.
-- Retested public HTML/JS delivery and credential scan after deploy.
+- Added RLS-safe analytics views using `security_invoker=on`.
+- Added constrained CAPA root-cause categories and database-managed closure timestamps.
+- Retested public delivery and database authorization boundaries after the v0.2 changes.
 
 ## Verification evidence
 
-- Core project suite: 84/84 tests passing.
-- Live-shell/security suite: 14/14 tests passing.
-- Build and JavaScript syntax checks: passing.
-- AppDeploy final QA: zero frontend errors and zero network errors on desktop/mobile snapshots.
-- Outside-in live HTML: HTTP 200, `text/html`, CSP present, no-referrer present, no iframe wrapper.
-- Outside-in live JS: HTTP 200, `text/javascript`, sessionStorage present, localStorage absent, fragment invites present, frame guard present, no service-role/secret key, no dependency on legacy long host.
-- Supabase Security Advisor: no RLS/schema security finding; one Auth warning for leaked-password protection.
+- GitHub Actions feature-branch test and production-build workflow: passing before release promotion.
+- AppDeploy v0.2 QA: zero frontend, network and backend errors on generated desktop/mobile snapshots.
+- Supabase reporting views verified as `security_invoker=on`.
+- Auditor unrelated-audit/finding/CAPA access checks: blocked.
+- Viewer assigned-read check: allowed; viewer write check: blocked.
+- Admin reporting-view/source-population comparison: matched.
+- Finding closure/reopen trigger lifecycle: passed.
+- Legacy due-date fallback verification: passed.
+- Supabase Security Advisor: no new analytics RLS/schema security warning; known display-name RPC and leaked-password warnings remain documented.

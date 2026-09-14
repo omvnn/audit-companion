@@ -39,10 +39,12 @@ export function shouldUseAiFallback({qualityPassed,confidence,aiEnabled}){
 export function blockingImportIssues({pages=[],items=[]}={}){
   const issues=[];
   for(const page of pages){
-    if(page.qualityStatus==='failed')issues.push({code:'PAGE_FAILED',pageNumber:page.pageNumber,reason:page.failureReason||'QUALITY_FAILED'});
+    const status=page.qualityStatus??page.quality_status;
+    if(status==='failed')issues.push({code:'PAGE_FAILED',pageNumber:page.pageNumber??page.page_number,reason:page.failureReason??page.failure_reason??'QUALITY_FAILED'});
   }
   for(const item of items){
-    const values=[item.textConfidence,item.clauseConfidence,item.methodConfidence].filter(v=>v!==undefined&&v!==null).map(Number);
+    const values=[item.textConfidence??item.text_confidence,item.clauseConfidence??item.clause_confidence,item.methodConfidence??item.method_confidence].filter(v=>v!==undefined&&v!==null).map(Number);
+    if(item.blockingError||item.blocking_error){issues.push({code:'ITEM_BLOCKED',position:item.position,reason:item.blockingError??item.blocking_error});continue;}
     if(values.length&&Math.min(...values)<DEFAULT_IMPORT_THRESHOLDS.mediumConfidence){
       issues.push({code:'ITEM_LOW_CONFIDENCE',position:item.position});
     }

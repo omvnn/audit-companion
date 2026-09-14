@@ -42,6 +42,17 @@ function metadataFromLines(lines){
   }
   return out;
 }
+function methodColumnsFromLines(lines){
+  for(const raw of lines){
+    const lower=String(raw).toLowerCase();
+    if(!lower.includes('inspection item')||!lower.includes('clause'))continue;
+    const documentReview=lower.indexOf('document review');
+    const inquiry=lower.indexOf('inquiry');
+    const onsiteInspection=lower.indexOf('on-site inspection')>=0?lower.indexOf('on-site inspection'):lower.indexOf('onsite inspection');
+    if(documentReview>=0&&inquiry>documentReview&&onsiteInspection>inquiry)return {documentReview,inquiry,onsiteInspection};
+  }
+  return null;
+}
 function parsePipeRow(raw,pageConfidence,pageNumber){
   const cells=raw.split('|').map(clean);
   if(cells.length<3)return null;
@@ -56,6 +67,21 @@ function parsePipeRow(raw,pageConfidence,pageNumber){
     documentReview:Boolean(flags[0]),inquiry:Boolean(flags[1]),onsiteInspection:Boolean(flags[2]),otherMethod:'',expectedEvidence:'',processStage:'Other',
     textConfidence,clauseConfidence:textConfidence,methodConfidence:methodCells.length>=3?textConfidence:Math.min(textConfidence,0.74),
   }};
+}
+function parseAlignedRow(raw,pageConfidence,pageNumber,columns){
+  if(!columns)return null;
+  const source=String(raw??'');
+  const m=source.match(/^\s*(\d+)\s+((?:[4-9]|10)(?:\.\d+){0,3})\s+/);
+  if(!m)return null;
+  const questionEnd=Math.min(columns.documentReview,columns.inquiry,columns.onsiteInspection);
+  if(source.length<=questionEnd)return null;
+  const question=clean(source.slice(m[0].length,questionEnd));
+  if(question.length<8)return {warning:`Page ${pageNumber} row ${m[1]} is ambiguous`};
+  const doc=clean(source.slice(columns.documentReview,columns.inquiry));
+  const inquiry=clean(source.slice(columns.inquiry,columns.onsiteInspection));
+  const onsite=clean(source.slice(columns.onsiteInspection));
+  const conf=Math.max(0,Math.min(1,Number(pageConfidence)||0));
+  return {item:{position:Number(m[1]),sourcePage:pageNumber,sourceRow:m[1],requirementReference:m[2],inspectionItem:question,documentReview:TICK_RE.test(doc),inquiry:TICK_RE.test(inquiry),onsiteInspection:TICK_RE.test(onsite),otherMethod:'',expectedEvidence:'',processStage:'Other',textConfidence:conf,clauseConfidence:conf,methodConfidence:conf}};
 }
 function parseLooseRow(raw,pageConfidence,pageNumber){
   const line=clean(raw);if(!line)return null;
@@ -72,6 +98,7 @@ export function parseAuditPlan(pages=[]){
   for(const page of sorted){
     const lines=String(page.text||'').split(/\r?\n/);
     const pageMeta=metadataFromLines(lines);
+    const methodColumns=methodColumnsFromLines(lines);
     for(const [k,v] of Object.entries(pageMeta)){
       const empty=Array.isArray(metadata[k])?metadata[k].length===0:!metadata[k];
       const has=Array.isArray(v)?v.length>0:Boolean(v);
@@ -80,7 +107,7 @@ export function parseAuditPlan(pages=[]){
     let foundOnPage=0;
     for(const raw of lines){
       if(/inspection item/i.test(raw)&&/clause/i.test(raw))continue;
-      const parsed=parsePipeRow(raw,page.confidence,page.pageNumber)||parseLooseRow(raw,page.confidence,page.pageNumber);
+      const parsed=parsePipeRow(raw,page.confidence,page.pageNumber)||parseAlignedRow(raw,page.confidence,page.pageNumber,methodColumns)||parseLooseRow(raw,page.confidence,page.pageNumber);
       if(parsed?.item){items.push(parsed.item);foundOnPage++;}
       if(parsed?.warning)warnings.push(parsed.warning);
     }
